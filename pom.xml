@@ -1363,7 +1363,7 @@
             </properties>
         </profile>
         <profile>
-            <id>jacoco-coverage</id>
+            <id>jacoco-coverage</id> <!-- Jacoco Profile -->
             <activation>
                 <activeByDefault>false</activeByDefault>
             </activation>
