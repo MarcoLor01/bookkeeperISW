@@ -21,20 +21,12 @@ jobs:
           distribution: 'temurin'
 
       - name: Cache Maven packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
-          path: ~/.m2/repository
+          path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-m2
-
-      - name: Pulisci cache Maven
-        run: rm -rf ~/.m2/repository/org/apache/bookkeeper
-
-      - name: Usa settings.xml personalizzato
-        run: |
-          mkdir -p ~/.m2
-          echo "<settings><mirrors><mirror><id>apache-snapshots</id><url>https://repository.apache.org/snapshots</url><mirrorOf>apache.snapshots</mirrorOf></mirror></mirrors></settings>" > ~/.m2/settings.xml
 
       - name: Run Tests
         run: mvn clean test -U -e
