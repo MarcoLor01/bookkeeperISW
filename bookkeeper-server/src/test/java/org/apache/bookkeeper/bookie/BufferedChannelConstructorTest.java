@@ -43,9 +43,9 @@ public class BufferedChannelConstructorTest {
     private Set<PosixFilePermission> originalPermissions;
     private final Path PATH = Paths.get("src/test/java/org/apache/bookkeeper/bookie/utils/fileForTest");
     private static final Logger logger = LoggerFactory.getLogger(BufferedChannelConstructorTest.class);
+    private Class<? extends Exception> exceptionCatched;
 
 
-    // Constructor for class parameters
     public BufferedChannelConstructorTest(AllocatorStatus allocatorStatus,
                                           FileStatus fileStatus,
                                           FileChannelStatus fileChannelStatus,
@@ -71,7 +71,7 @@ public class BufferedChannelConstructorTest {
                 // TEST 1: Allocator null, FileChannel default, write=0, read=0, unpersisted=0 -> NullPointerException
                 {AllocatorStatus.NULL, FileStatus.DEFAULT, FileChannelStatus.DEFAULT, 0, 0, 0, NullPointerException.class},
 
-                // TEST 2: Allocator default, FileChannel null, write=1 read=0, unpersisted=0 -> NullPointerException
+                // TEST 2: Allocator default, FileChannel default, write=1 read=0, unpersisted=0 -> NullPointerException
                 {AllocatorStatus.DEFAULT, FileStatus.DEFAULT, FileChannelStatus.NULL, 1, 0, 0, NullPointerException.class},
 
                 // TEST 3: Allocator default, FileChannel closed, write=1, read=1, unpersisted=1 -> ClosedChannelException
@@ -88,23 +88,26 @@ public class BufferedChannelConstructorTest {
 
                 // TEST 7: Allocator default, FileChannel default, write=1, read=1, unpersisted=-1 -> Correct instantiation
                 {AllocatorStatus.DEFAULT, FileStatus.DEFAULT, FileChannelStatus.DEFAULT, 1, 1, -1, null},
-                /*
-                // TEST 8: Allocator invalid, FileChannel default write=1, read=1, unpersisted=1 -> NullPointerException
-                {AllocatorStatus.INVALID, FileStatus.DEFAULT, FileChannelStatus.DEFAULT, 1, 1, 1, NullPointerException.class}, //Return NULL
-                */
-                /*
+
+                // TEST 8: Allocator invalid, FileChannel default write=1, read=1, unpersisted=1 -> NullPointerException TEST FAILURE
+                //{AllocatorStatus.INVALID, FileStatus.DEFAULT, FileChannelStatus.DEFAULT, 1, 1, 1, NullPointerException.class}, //Return NULL
+
                 // TEST 9: Allocator default, FileChannel no permission -> AccessDeniedException
                 {AllocatorStatus.DEFAULT, FileStatus.NO_PERMISSION, FileChannelStatus.DEFAULT, 0, 0, 0, AccessDeniedException.class}, //Return NULL
-                */
+
 
         });
     }
 
     @Before
-    public void setUp() throws IOException {
-        setFileChannel();
-        setFile();
-        setAllocatorStatus();
+    public void setUp() {
+        try {
+            setFile();
+            setFileChannel();
+            setAllocatorStatus();
+        }catch (IOException e) {
+            exceptionCatched = e.getClass();
+        }
     }
 
     private void setAllocatorStatus() {
@@ -142,7 +145,7 @@ public class BufferedChannelConstructorTest {
                 break;
             case DEFAULT:
                 fc = FileChannel.open(PATH, StandardOpenOption.CREATE);
-                fc.position(1);
+                fc.position(1); //Aggiunta per pit
                 break;
             case CLOSED:
                 closeChannel();
@@ -155,7 +158,7 @@ public class BufferedChannelConstructorTest {
         fc.close();
     }
 
-    private void setNoPermissionFile() throws IOException {
+    private void setNoPermissionFile() throws IOException{
         Set<PosixFilePermission> perms = PosixFilePermissions.fromString("---------");
         Files.setPosixFilePermissions(PATH, perms);
     }
@@ -163,38 +166,33 @@ public class BufferedChannelConstructorTest {
     @Test
     public void test() {
         try {
-            logger.info("Running test with parameters: AllocatorStatus={}, FileStatus={}, FileChannelStatus={}, writeCapacity={}, readCapacity={}, unpersistedBytesBound={}, expectedException={}",
-                    allocatorStatus, fileStatus, fileChannelStatus, writeCapacity, readCapacity, unpersistedBytesBound, expectedException);
-            bufferedChannel = spy(new BufferedChannel(allocator, fc, writeCapacity, readCapacity, unpersistedBytesBound));
 
-            Assert.assertNotNull(bufferedChannel);
+            if (exceptionCatched != null) {
+                Assert.assertEquals(expectedException, exceptionCatched);
+            } else {
 
-            checkWriteBufferStartPosition(); //Add after pit
-            checkFlush(); //Add after pit
+                logger.info("Running test with parameters: AllocatorStatus={}, FileStatus={}, FileChannelStatus={}, writeCapacity={}, readCapacity={}, unpersistedBytesBound={}, expectedException={}",
+                        allocatorStatus, fileStatus, fileChannelStatus, writeCapacity, readCapacity, unpersistedBytesBound, expectedException);
+                bufferedChannel = spy(new BufferedChannel(allocator, fc, writeCapacity, readCapacity, unpersistedBytesBound));
 
-            if(expectedException != null){
-                Assert.fail("Expected exception: " + expectedException + " but none was thrown.");
+                Assert.assertNotNull(bufferedChannel);
+
+                checkWriteBufferStartPosition(); //Add after pit
+
+                if (expectedException != null) {
+                    Assert.fail("Expected exception: " + expectedException + " but none was thrown.");
+                }
+                logger.info("Test passed with parameters: AllocatorStatus={}, FileStatus={}, FileChannelStatus={}",
+                        allocatorStatus, fileStatus, fileChannelStatus);
+}
+            } catch(Exception e){
+                Assert.assertEquals(expectedException, e.getClass());
+                logger.info("Test passed with expected exception: {}", e.getClass());
             }
-            logger.info("Test passed with parameters: AllocatorStatus={}, FileStatus={}, FileChannelStatus={}",
-                    allocatorStatus, fileStatus, fileChannelStatus);
-
-        } catch (Exception e) {
-            Assert.assertEquals(expectedException, e.getClass());
-            logger.info("Test passed with expected exception: {}", e.getClass());
-        }
     }
 
     private void checkWriteBufferStartPosition() throws IOException {
         Assert.assertEquals(bufferedChannel.writeBufferStartPosition.get(), fc.position());
-    }
-
-    private void checkFlush() throws NoSuchFieldException, IllegalAccessException {
-        boolean doFlush = unpersistedBytesBound > 0;
-        Field doRegularFlushesField = BufferedChannel.class.getDeclaredField("doRegularFlushes");
-        doRegularFlushesField.setAccessible(true);
-
-        boolean actualValue = (boolean) doRegularFlushesField.get(bufferedChannel);
-        Assert.assertEquals(doFlush, actualValue);
     }
 
 

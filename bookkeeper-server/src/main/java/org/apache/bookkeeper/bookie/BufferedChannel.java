@@ -24,6 +24,9 @@ package org.apache.bookkeeper.bookie;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -71,6 +74,8 @@ public class BufferedChannel extends BufferedReadChannel implements Closeable {
     protected final AtomicLong unpersistedBytes;
 
     private boolean closed = false;
+
+    private static final Logger logger = LoggerFactory.getLogger(BufferedChannel.class);
 
     // make constructor to be public for unit test
     public BufferedChannel(ByteBufAllocator allocator, FileChannel fc, int capacity) throws IOException {
@@ -244,9 +249,11 @@ public class BufferedChannel extends BufferedReadChannel implements Closeable {
     @Override
     public synchronized int read(ByteBuf dest, long pos, int length) throws IOException {
         long prevPos = pos;
+
         while (length > 0) {
             // check if it is in the write buffer
             if (writeBuffer != null && writeBufferStartPosition.get() <= pos) {
+
                 int positionInBuffer = (int) (pos - writeBufferStartPosition.get());
                 int bytesToCopy = Math.min(writeBuffer.writerIndex() - positionInBuffer, dest.writableBytes());
 
@@ -257,9 +264,11 @@ public class BufferedChannel extends BufferedReadChannel implements Closeable {
                 dest.writeBytes(writeBuffer, positionInBuffer, bytesToCopy);
                 pos += bytesToCopy;
                 length -= bytesToCopy;
+
             } else if (writeBuffer == null && writeBufferStartPosition.get() <= pos) {
                 // here we reach the end
                 break;
+
                 // first check if there is anything we can grab from the readBuffer
             } else if (readBufferStartPosition <= pos && pos < readBufferStartPosition + readBuffer.writerIndex()) {
                 int positionInBuffer = (int) (pos - readBufferStartPosition);
@@ -267,16 +276,16 @@ public class BufferedChannel extends BufferedReadChannel implements Closeable {
                 dest.writeBytes(readBuffer, positionInBuffer, bytesToCopy);
                 pos += bytesToCopy;
                 length -= bytesToCopy;
-                // let's read it
+
             } else {
                 readBufferStartPosition = pos;
-
                 int readBytes = fileChannel.read(readBuffer.internalNioBuffer(0, readCapacity),
                         readBufferStartPosition);
                 if (readBytes <= 0) {
                     throw new IOException("Reading from filechannel returned a non-positive value. Short read.");
                 }
                 readBuffer.writerIndex(readBytes);
+
             }
         }
         return (int) (pos - prevPos);

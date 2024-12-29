@@ -450,6 +450,8 @@
                           </targetClasses>
                           <targetTests>
                               <param>org.apache.bookkeeper.bookie.BufferedChannelConstructorTest</param>
+                              <param>org.apache.bookkeeper.bookie.BufferedChannelWriteTest</param>
+                              <param>org.apache.bookkeeper.bookie.BufferedChannelReadTest</param>
                           </targetTests>
                           <avoidCallsTo>
                               <avoidCallsTo>org.slf4j</avoidCallsTo>
