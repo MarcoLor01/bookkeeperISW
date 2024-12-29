@@ -29,6 +29,6 @@ jobs:
             ${{ runner.os }}-m2
 
       - name: Run Tests
-        run: mvn clean test -U -e
+        run: mvn clean verify
 
 
