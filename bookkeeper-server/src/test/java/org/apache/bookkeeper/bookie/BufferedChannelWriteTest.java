@@ -4,8 +4,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledByteBufAllocator;
-import org.apache.bookkeeper.bookie.utils.ByteBufStatus;
-import org.apache.bookkeeper.bookie.utils.FileChannelStatus;
+import org.apache.bookkeeper.bookie.utils.commonEnum.ByteBufStatus;
+import org.apache.bookkeeper.bookie.utils.commonEnum.FileChannelStatus;
 import org.junit.*;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.NonWritableChannelException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -31,13 +32,13 @@ public class BufferedChannelWriteTest {
     private ByteBufAllocator allocator;
     private FileChannel fc;
     private ByteBuf src;
-    private ByteBufStatus srcStatus;
-    private int writeCapacity;
-    private Class<? extends Exception> expectedException;
-    private FileChannelStatus fileChannelStatus;
+    private final ByteBufStatus srcStatus;
+    private final int writeCapacity;
+    private final Class<? extends Exception> expectedException;
+    private final FileChannelStatus fileChannelStatus;
     private final Path PATH = Paths.get("src/test/java/org/apache/bookkeeper/bookie/utils/fileForTest");
-    private int bytesToWriteInSrc = DEFAULT_CAPACITY / 4;
-    private int unpersistedBytesBound;
+    private final int bytesToWriteInSrc = DEFAULT_CAPACITY / 4;
+    private final int unpersistedBytesBound;
     private byte[] randomBytes;
 
 
@@ -104,7 +105,9 @@ public class BufferedChannelWriteTest {
     }
 
     private void setFileChannel() throws IOException {
-
+        if (Files.notExists(PATH)) {
+            Files.createFile(PATH);
+        }
         switch(fileChannelStatus){
             case NULL:
                 fc = null;
@@ -142,7 +145,9 @@ public class BufferedChannelWriteTest {
 
     @After
     public void tearDown() throws IOException {
-
+        if (Files.exists(PATH)) {
+            Files.delete(PATH);
+        }
         if (fc != null && fc.isOpen()) {
             fc.close();
         }

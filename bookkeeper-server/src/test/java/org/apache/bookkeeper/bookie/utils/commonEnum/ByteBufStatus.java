@@ -1,4 +1,4 @@
-package org.apache.bookkeeper.bookie.utils;
+package org.apache.bookkeeper.bookie.utils.commonEnum;
 
 public enum ByteBufStatus {
     DEFAULT,

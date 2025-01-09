@@ -1,8 +1,7 @@
 package org.apache.bookkeeper.bookie;
 
-import org.apache.bookkeeper.bookie.utils.FileStatus;
-import org.apache.bookkeeper.bookie.utils.FileChannelStatus;
-import org.apache.bookkeeper.bookie.utils.AllocatorStatus;
+import org.apache.bookkeeper.bookie.utils.commonEnum.FileChannelStatus;
+import org.apache.bookkeeper.bookie.utils.commonEnum.AllocatorStatus;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import org.junit.After;
@@ -13,7 +12,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
@@ -32,15 +30,14 @@ public class BufferedChannelConstructorTest {
 
     private BufferedChannel bufferedChannel;
     private ByteBufAllocator allocator;
-    private FileStatus fileStatus;
+    private final FileStatus fileStatus;
     private FileChannel fc;
-    private FileChannelStatus fileChannelStatus;
-    private Class<? extends Exception> expectedException;
-    private int writeCapacity;
-    private int readCapacity;
-    private long unpersistedBytesBound;
-    private AllocatorStatus allocatorStatus;
-    private Set<PosixFilePermission> originalPermissions;
+    private final FileChannelStatus fileChannelStatus;
+    private final Class<? extends Exception> expectedException;
+    private final int writeCapacity;
+    private final int readCapacity;
+    private final long unpersistedBytesBound;
+    private final AllocatorStatus allocatorStatus;
     private final Path PATH = Paths.get("src/test/java/org/apache/bookkeeper/bookie/utils/fileForTest");
     private static final Logger logger = LoggerFactory.getLogger(BufferedChannelConstructorTest.class);
     private Class<? extends Exception> exceptionCatched;
@@ -127,7 +124,7 @@ public class BufferedChannelConstructorTest {
         if (Files.notExists(PATH)) {
             Files.createFile(PATH);
         }
-        originalPermissions = Files.getPosixFilePermissions(PATH);
+
         switch (fileStatus){
             case NO_PERMISSION:
                 setNoPermissionFile();
@@ -144,7 +141,7 @@ public class BufferedChannelConstructorTest {
                 fc = null;
                 break;
             case DEFAULT:
-                fc = FileChannel.open(PATH, StandardOpenOption.CREATE);
+                fc = FileChannel.open(PATH, StandardOpenOption.CREATE, StandardOpenOption.READ);
                 fc.position(1); //Aggiunta per pit
                 break;
             case CLOSED:
@@ -170,20 +167,15 @@ public class BufferedChannelConstructorTest {
             if (exceptionCatched != null) {
                 Assert.assertEquals(expectedException, exceptionCatched);
             } else {
-
-                logger.info("Running test with parameters: AllocatorStatus={}, FileStatus={}, FileChannelStatus={}, writeCapacity={}, readCapacity={}, unpersistedBytesBound={}, expectedException={}",
-                        allocatorStatus, fileStatus, fileChannelStatus, writeCapacity, readCapacity, unpersistedBytesBound, expectedException);
                 bufferedChannel = spy(new BufferedChannel(allocator, fc, writeCapacity, readCapacity, unpersistedBytesBound));
-
                 Assert.assertNotNull(bufferedChannel);
+                Assert.assertEquals(bufferedChannel.writeBuffer.capacity(), writeCapacity);
 
                 checkWriteBufferStartPosition(); //Add after pit
 
                 if (expectedException != null) {
                     Assert.fail("Expected exception: " + expectedException + " but none was thrown.");
                 }
-                logger.info("Test passed with parameters: AllocatorStatus={}, FileStatus={}, FileChannelStatus={}",
-                        allocatorStatus, fileStatus, fileChannelStatus);
 }
             } catch(Exception e){
                 Assert.assertEquals(expectedException, e.getClass());
@@ -204,9 +196,10 @@ public class BufferedChannelConstructorTest {
 
     @After
     public void tearDown() throws IOException {
-        if (fileStatus == FileStatus.NO_PERMISSION){
-            Files.setPosixFilePermissions(PATH, originalPermissions);
+        if (Files.exists(PATH)) {
+            Files.delete(PATH);
         }
+
         if (fc != null && fc.isOpen()) {
             fc.close();
         }
@@ -214,5 +207,10 @@ public class BufferedChannelConstructorTest {
             bufferedChannel.close();
         }
 
+    }
+
+    public enum FileStatus {
+        NO_PERMISSION,
+        DEFAULT,
     }
 }

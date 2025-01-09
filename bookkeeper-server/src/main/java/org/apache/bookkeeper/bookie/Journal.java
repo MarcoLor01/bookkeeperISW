@@ -32,17 +32,6 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.Recycler;
 import io.netty.util.Recycler.Handle;
 import io.netty.util.ReferenceCountUtil;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import org.apache.bookkeeper.bookie.LedgerDirsManager.NoWritableLedgerDirException;
 import org.apache.bookkeeper.bookie.stats.JournalStats;
 import org.apache.bookkeeper.common.collections.BatchedArrayBlockingQueue;
@@ -54,15 +43,24 @@ import org.apache.bookkeeper.common.util.affinity.CpuAffinity;
 import org.apache.bookkeeper.conf.ServerConfiguration;
 import org.apache.bookkeeper.proto.BookieRequestHandler;
 import org.apache.bookkeeper.proto.BookkeeperInternalCallbacks.WriteCallback;
-import org.apache.bookkeeper.stats.Counter;
-import org.apache.bookkeeper.stats.NullStatsLogger;
-import org.apache.bookkeeper.stats.OpStatsLogger;
-import org.apache.bookkeeper.stats.StatsLogger;
-import org.apache.bookkeeper.stats.ThreadRegistry;
+import org.apache.bookkeeper.stats.*;
 import org.apache.bookkeeper.util.IOUtils;
 import org.apache.bookkeeper.util.MathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Provide journal related management.
@@ -774,9 +772,11 @@ public class Journal implements CheckpointSource {
      */
     @Override
     public void checkpointComplete(Checkpoint checkpoint, boolean compact) throws IOException {
+
         if (!(checkpoint instanceof LogMarkCheckpoint)) {
             return; // we didn't create this checkpoint, so dont do anything with it
         }
+
         LogMarkCheckpoint lmcheckpoint = (LogMarkCheckpoint) checkpoint;
         LastLogMark mark = lmcheckpoint.mark;
 
@@ -823,23 +823,29 @@ public class Journal implements CheckpointSource {
                     journalPos, conf, fileChannelProvider);
         }
         int journalVersion = recLog.getFormatVersion();
+
         try {
             ByteBuffer lenBuff = ByteBuffer.allocate(4);
             ByteBuffer recBuff = ByteBuffer.allocate(64 * 1024);
+
             while (true) {
                 // entry start offset
                 long offset = recLog.fc.position();
                 // start reading entry
                 lenBuff.clear();
+
                 fullRead(recLog, lenBuff);
+
                 if (lenBuff.remaining() != 0) {
                     break;
                 }
                 lenBuff.flip();
+
                 int len = lenBuff.getInt();
                 if (len == 0) {
                     break;
                 }
+
                 boolean isPaddingRecord = false;
                 if (len < 0) {
                     if (len == PADDING_MASK && journalVersion >= JournalChannel.V5) {
@@ -1275,6 +1281,7 @@ public class Journal implements CheckpointSource {
         }
         return total;
     }
+
 
     /**
      * Wait for the Journal thread to exit.
