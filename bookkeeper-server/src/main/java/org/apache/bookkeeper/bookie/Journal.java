@@ -199,7 +199,6 @@ public class Journal implements CheckpointSource {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("RollLog to persist last marked log : {}", lastMark.getCurMark());
             }
-
             List<File> writableLedgerDirs = ledgerDirsManager
                     .getWritableLedgerDirsForNewLog();
             for (File dir : writableLedgerDirs) {
@@ -652,7 +651,7 @@ public class Journal implements CheckpointSource {
     }
 
     public Journal(int journalIndex, File journalDirectory, ServerConfiguration conf,
-            LedgerDirsManager ledgerDirsManager, StatsLogger statsLogger, ByteBufAllocator allocator) {
+                   LedgerDirsManager ledgerDirsManager, StatsLogger statsLogger, ByteBufAllocator allocator) {
         this.allocator = allocator;
 
         StatsLogger journalStatsLogger = statsLogger.scopeLabel("journalIndex", String.valueOf(journalIndex));
@@ -880,6 +879,7 @@ public class Journal implements CheckpointSource {
                 if (!isPaddingRecord) {
                     scanner.process(journalVersion, offset, recBuff);
                 }
+
             }
             return recLog.fc.position();
         } catch (IOException e) {
@@ -1321,4 +1321,20 @@ public class Journal implements CheckpointSource {
     public void setForceWriteRequests(BatchedBlockingQueue<ForceWriteRequest> forceWriteRequests) {
         this.forceWriteRequests = forceWriteRequests;
     }
+
+    @VisibleForTesting
+    public int getJournalWriteBufferSize() {
+        return this.journalWriteBufferSize;
+    }
+
+    @VisibleForTesting
+    public LedgerDirsManager getLedgerDirsManager(){
+        return this.ledgerDirsManager;
+    }
+
+    @VisibleForTesting
+    public String getLastMarkFileName(){
+        return this.lastMarkFileName;
+    }
+
 }

@@ -62,6 +62,10 @@ public class BookieUtilJournal {
 
 
     public static JournalChannel writeV4Journal(File journalDir, int numEntries, byte[] masterKey) throws Exception {
+        return writeV4Journal(journalDir, numEntries, masterKey, 0);
+    }
+
+    public static JournalChannel writeV4Journal(File journalDir, int numEntries, byte[] masterKey, int value) throws Exception {
         long logId = System.currentTimeMillis();
         JournalChannel jc = new JournalChannel(journalDir, logId);
 
@@ -81,7 +85,12 @@ public class BookieUtilJournal {
             }
             lastConfirmed = i;
             ByteBuffer lenBuff = ByteBuffer.allocate(4);
-            lenBuff.putInt(packet.readableBytes());
+            if (value == 0) {
+                lenBuff.putInt(packet.readableBytes());
+            } else {
+                lenBuff.putInt(value);
+            }
+
             lenBuff.flip();
             bc.write(Unpooled.wrappedBuffer(lenBuff));
             bc.write(packet);
@@ -97,6 +106,7 @@ public class BookieUtilJournal {
         updateJournalVersion(jc, JournalChannel.V4);
         return jc;
     }
+
 
 
     public static ByteBuf generatePacket(long ledgerId, long entryId, long lastAddConfirmed,
@@ -177,4 +187,6 @@ public class BookieUtilJournal {
         updateJournalVersion(jc, JournalChannel.V5);
         return jc;
     }
+
+
 }

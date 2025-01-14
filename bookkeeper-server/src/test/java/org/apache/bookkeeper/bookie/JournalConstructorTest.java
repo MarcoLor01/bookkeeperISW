@@ -25,9 +25,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Random;
 
+import static org.apache.bookkeeper.bookie.Journal.KB;
+import static org.apache.bookkeeper.bookie.Journal.MB;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @RunWith(Parameterized.class)
 public class JournalConstructorTest {
@@ -44,37 +45,49 @@ public class JournalConstructorTest {
     private ByteBufAllocator byteBufAllocator;
     private LedgerDirsManager ledgerDirsManager;
     private final Class<? extends Exception> expectedException;
+    private final boolean isBusyWait;
+    private final boolean notExistentFileChannelProvider;
+    private final boolean moreThanOneJournal;
+    private final boolean flushWhenEmpty;
 
     public JournalConstructorTest(int journalIndex, JournalDirectoryStatus journalDirectoryStatus, ConfigurationStatus configurationStatus,
                                   LedgerDirsManagerStatus ledgerDirsManagerStatus, StatsLoggerStatus statsLoggerStatus,
-                                  AllocatorStatus allocatorStatus, Class<? extends Exception> expectedException){
+                                  AllocatorStatus allocatorStatus,  boolean isBusyWait, boolean notExistentFileChannelProvider, boolean moreThanOneJournal,
+                                  boolean flushWhenEmpty, Class<? extends Exception> expectedException){
         this.journalIndex = journalIndex;
         this.journalDirectoryStatus = journalDirectoryStatus;
         this.configurationStatus = configurationStatus;
         this.ledgerDirsManagerStatus = ledgerDirsManagerStatus;
         this.statsLoggerStatus = statsLoggerStatus;
         this.allocatorStatus = allocatorStatus;
+        this.isBusyWait = isBusyWait;
+        this.notExistentFileChannelProvider = notExistentFileChannelProvider;
         this.expectedException = expectedException;
+        this.moreThanOneJournal = moreThanOneJournal;
+        this.flushWhenEmpty = flushWhenEmpty;
     }
 
     @Parameterized.Parameters
     public static Collection<Object[]> parameters() {
         return Arrays.asList(new Object[][]{
-                // TEST: journalIndex, journalDirectory, conf, ledgerDirsManager, statsLogger, allocator -> Expected
-                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, null},
-                {-1, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, null},
-                {1, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, null},
-                {0, JournalDirectoryStatus.NULL, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, null},
-                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.NULL, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, NullPointerException.class},
-                {1, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.NULL, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, NullPointerException.class},
-                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.NULL, AllocatorStatus.DEFAULT, NullPointerException.class},
-                {1, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.NULL, null},
-                {1, JournalDirectoryStatus.INVALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, null},
-                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.INVALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, IllegalStateException.class},
-                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.INVALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, IllegalStateException.class},
-                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.INVALID, AllocatorStatus.DEFAULT, NullPointerException.class},
-                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.INVALID, null},
+                // TEST: journalIndex, journalDirectory, conf, ledgerDirsManager, statsLogger, allocator, isBusy (after jacoco), NotExistentChannelProvider (after jacoco) -> Expected
+                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, false, false, false, false, null},
+                {-1, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, false, false, false, false, null},
+                {1, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, false, false, false, false, null},
+                {0, JournalDirectoryStatus.NULL, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, false, false, false, false, null},
+                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.NULL, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, false, false, false, false, NullPointerException.class},
+                {1, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.NULL, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, false, false, false, false, NullPointerException.class},
+                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.NULL, AllocatorStatus.DEFAULT, false, false, false, false, NullPointerException.class},
+                {1, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.NULL, false, false, false, false, null},
+                {1, JournalDirectoryStatus.INVALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, false, false, false, false, null},
+                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.INVALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, false, false, false, false, IllegalStateException.class},
+                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.INVALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, false, false, false, false, IllegalStateException.class},
+                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.INVALID, AllocatorStatus.DEFAULT, false, false, false, false, NullPointerException.class},
+                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.INVALID, false, false, false, false, null},
 
+                //Add after Jacoco
+                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, true, false, false, true, null},
+                {0, JournalDirectoryStatus.VALID, ConfigurationStatus.VALID, LedgerDirsManagerStatus.VALID, StatsLoggerStatus.VALID, AllocatorStatus.DEFAULT, true, true, true, false, RuntimeException.class},
         });
     }
 
@@ -154,12 +167,31 @@ public class JournalConstructorTest {
 
                 configuration.setJournalDirName(journalDir.getAbsolutePath());
                 configuration.setLedgerDirNames(new String[]{ledgerDir.getAbsolutePath()});
+                if (isBusyWait || notExistentFileChannelProvider || moreThanOneJournal) {
+                    configuration = spy(configuration);
+                    if (isBusyWait) {
+                        doReturn(true).when(configuration).isBusyWaitEnabled();
+                    }
+                    if (notExistentFileChannelProvider){
+                        doReturn("notExistentClass").when(configuration).getJournalChannelProvider();
+                    }
+                    if (moreThanOneJournal){
+                        File[] mockJournalDirs = {new File("dir1"), new File("dir2")};
+                        doReturn(mockJournalDirs).when(configuration).getJournalDirs();
+                    }
+                }
+
+                if (flushWhenEmpty){
+                    configuration.setJournalFlushWhenQueueEmpty(false);
+                }
+
                 break;
             case INVALID:
                 configuration = new InvalidServerConfiguration();
                 break;
         }
     }
+
 
 
     public static class InvalidServerConfiguration extends ServerConfiguration {
@@ -203,8 +235,12 @@ public class JournalConstructorTest {
 
             Assert.assertNotNull(journal);
             Assert.assertEquals(journalDirectory, journal.getJournalDirectory());
-
-            if (configuration.isBusyWaitEnabled()) {
+            //After pit
+            Assert.assertEquals(journal.getJournalWriteBufferSize(), configuration.getJournalWriteBufferSizeKB() * KB); //Riga 677
+            Assert.assertEquals(journal.maxJournalSize, configuration.getMaxJournalSizeMB() * MB); //Riga 675
+            
+            
+            if (isBusyWait) {
                 Assert.assertTrue(journal.queue instanceof BlockingMpscQueue);
             } else {
                 Assert.assertTrue(journal.queue instanceof BatchedArrayBlockingQueue);
