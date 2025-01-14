@@ -1,29 +1,70 @@
 name: TestWorkFlow
+
 on:
   push:
     branches:
       - master
   pull_request:
     types: [opened, synchronize, reopened]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+      # Step 1: Checkout il codice
       - uses: actions/checkout@v2
+
+      # Step 2: Imposta la versione di Java (JDK 1.8)
       - name: Set up JDK 1.8
         uses: actions/setup-java@v3
         with:
           java-version: 8.0.372
           distribution: 'adopt'
+
+      # Step 3: Configura Maven con il file settings.xml per i repository SNAPSHOT
+      - name: Configure Maven settings.xml
+        run: |
+          mkdir -p ~/.m2
+          echo '<settings>
+            <profiles>
+              <profile>
+                <id>apache-snapshots</id>
+                <repositories>
+                  <repository>
+                    <id>apache.snapshots</id>
+                    <url>https://repository.apache.org/snapshots</url>
+                    <snapshots>
+                      <enabled>true</enabled>
+                    </snapshots>
+                    <releases>
+                      <enabled>false</enabled>
+                    </releases>
+                  </repository>
+                </repositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>apache-snapshots</activeProfile>
+            </activeProfiles>
+          </settings>' > ~/.m2/settings.xml
+
+      # Step 4: Cache delle dipendenze Maven
       - name: Cache Maven packages
         uses: actions/cache@v4
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2
+          restore-keys: |
+            ${{ runner.os }}-m2
+
+      # Step 5: Installa dipendenze SNAPSHOT localmente (opzionale)
+      # Questo è necessario se alcune dipendenze SNAPSHOT non sono pubblicate su un repository remoto
+      - name: Install local SNAPSHOT dependencies
+        run: mvn clean install -U
+
+      # Step 6: Esegui la build e analisi
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mvn clean verify -e -X -U
-
-
