@@ -46,6 +46,7 @@ public class JournalCheckpointCompleteTest {
                 {CheckPointStatus.VALID, false, null, false, JournalNumber.DEFAULT},
                 {CheckPointStatus.INVALID, false, null, false, JournalNumber.DEFAULT},
                 {CheckPointStatus.NULL, false, null, false, JournalNumber.DEFAULT},
+
                 //After JaCoCo, non tocchiamo fin'ora il if (logs.size() >= maxBackupJournals), introduciamo nuova variabile
                 {CheckPointStatus.VALID, true, null, true, JournalNumber.DEFAULT},
                 //After ba-dua, i=MAX_BACKUP
@@ -121,6 +122,7 @@ public class JournalCheckpointCompleteTest {
                 checkpoint = spy(this.journal.newCheckpoint());
                 break;
             case INVALID:
+                System.out.print("Setto invalido\n");
                 checkpoint = CheckpointSource.DEFAULT.newCheckpoint(); //Checkpoint non di questo Journal
                 break;
 

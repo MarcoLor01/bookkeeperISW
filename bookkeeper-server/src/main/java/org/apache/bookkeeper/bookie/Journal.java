@@ -781,6 +781,7 @@ public class Journal implements CheckpointSource {
 
         mark.rollLog(mark);
         if (compact) {
+
             // list the journals that have been marked
             List<Long> logs = listJournalIds(journalDirectory, new JournalRollingFilter(mark));
             // keep MAX_BACKUP_JOURNALS journal files before marked journal
