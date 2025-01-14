@@ -24,6 +24,6 @@ jobs:
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn clean verify -e -X
+        run: mvn clean verify -e -X -U
 
 
