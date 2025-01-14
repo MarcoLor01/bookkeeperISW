@@ -1,27 +1,42 @@
-name: BuildWorkFlow
+name: TestWorkFlow
+
 on:
   push:
     branches:
       - master
   pull_request:
     types: [opened, synchronize, reopened]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
+      # Step 1: Checkout il codice
       - uses: actions/checkout@v2
+
+      # Step 2: Imposta JDK
       - name: Set up JDK 1.8
         uses: actions/setup-java@v3
         with:
-          java-version: 8.0.372
+          java-version: 8
           distribution: 'adopt'
-      - name: Cache Maven packages
+
+      # Step 3: Cache Maven dependencies
+      - name: Cache Maven dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.m2
+          path: ~/.m2/repository
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-m2
+          restore-keys: |
+            ${{ runner.os }}-m2
+
+      # Step 4: Compila e installa tutte le SNAPSHOT nel repository locale
+      - name: Install all SNAPSHOT dependencies
+        run: mvn clean install -U -DskipTests
+
+      # Step 5: Esegui la build
       - name: Build and analyze
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn clean verify
+        run: mvn clean verify -e -X -U
