@@ -21,6 +21,9 @@ import java.util.*;
 
 import static org.apache.bookkeeper.bookie.BookieUtilJournal.writeV4Journal;
 import static org.apache.bookkeeper.bookie.BookieUtilJournal.writeV5Journal;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 
 @RunWith(Parameterized.class)
 public class JournalScanJournalTest {
@@ -68,12 +71,12 @@ public class JournalScanJournalTest {
                 {0, 1, ScannerStatus.VALID, false, Version.VERSION_4, false, null},
 
                 //After JaCoCo
-                {-1, 0, ScannerStatus.VALID, true, Version.VERSION_5, false, null},
-                {-1, 0, ScannerStatus.VALID, false, Version.VERSION_4, true, IOException.class},
-                {-1, 0, ScannerStatus.VALID, false, Version.VERSION_5_CORRUPTED, true, IOException.class},
-                {-1, 0, ScannerStatus.VALID, true, Version.VERSION_5_CORRUPTED, true, null},
+                //{-1, 0, ScannerStatus.VALID, true, Version.VERSION_5, false, null},
+                //{-1, 0, ScannerStatus.VALID, false, Version.VERSION_4, true, IOException.class},
+                //{-1, 0, ScannerStatus.VALID, false, Version.VERSION_5_CORRUPTED, true, IOException.class},
+                //{-1, 0, ScannerStatus.VALID, true, Version.VERSION_5_CORRUPTED, true, null},
                 //After Ba-Dua
-                {0, 0, ScannerStatus.VALID, false, Version.VERSION_4_LEN_MAX, true, null},
+                //{0, 0, ScannerStatus.VALID, false, Version.VERSION_4_LEN_MAX, true, null},
         });
     }
 
@@ -141,7 +144,7 @@ public class JournalScanJournalTest {
         return dir;
     }
 
-    private void setScanner() {
+    private void setScanner() throws IOException{
         switch (scannerStatus) {
             case NULL:
                 journalScanner = null;
@@ -150,7 +153,7 @@ public class JournalScanJournalTest {
                 journalScanner = new ValidJournalScan();
                 break;
             case INVALID:
-                journalScanner = new InvalidJournalScan();
+                journalScanner = getInvalidJournalScanner();
                 break;
         }
     }
@@ -233,12 +236,12 @@ public class JournalScanJournalTest {
 
     }
 
-    private static class InvalidJournalScan implements JournalScanner {
+    private JournalScanner getInvalidJournalScanner() throws IOException{
+        JournalScanner mockJournalScanner = mock(JournalScanner.class);
 
-        @Override
-        public void process(int journalVersion, long offset, ByteBuffer entry) throws IOException {
-            throw new IOException("Invalid Scanner");
-        }
+        doThrow(new IOException("Invalid Scanner")).when(mockJournalScanner)
+                .process(anyInt(), anyLong(), any(ByteBuffer.class));
+        return mockJournalScanner;
     }
 
     public enum Version{

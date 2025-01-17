@@ -131,7 +131,7 @@ public class BufferedChannelReadTest {
             case WRITE_BUF_NULL:
                 allocator = spy(UnpooledByteBufAllocator.DEFAULT);
                 doReturn(null).when(allocator).directBuffer(anyInt());
-                setBufferedChannel();;
+                setBufferedChannel();
                 break;
             case WRITE_BUF_NULL_HIGH_VALUE:
                 allocator = spy(UnpooledByteBufAllocator.DEFAULT);
