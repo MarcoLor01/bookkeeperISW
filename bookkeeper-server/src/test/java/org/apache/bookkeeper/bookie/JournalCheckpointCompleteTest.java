@@ -63,8 +63,8 @@ public class JournalCheckpointCompleteTest {
 
         if (maxJournals){
             if(journalNumber == JournalNumber.MAX_BACKUP){
-                for (int i=0; i<4;i++){
-                    writeV4Journal(journalDirectory, 50, KEY); //MAX_BACKUP è pari a 5, ma noi effettuiamo già una scrittura precedente
+                for (int i=0; i< journal.maxBackupJournals-1;i++){ //MAX_BACKUP è pari a 5, ma noi effettuiamo già una scrittura precedente
+                    writeV4Journal(journalDirectory, 50, KEY);
                 }
             } else {
                 for (int i = 0; i < 15; i++) {
@@ -73,6 +73,15 @@ public class JournalCheckpointCompleteTest {
             }
         }
 
+    }
+
+    public JournalCheckpointCompleteTest(CheckPointStatus checkPointStatus, boolean compact,
+                                         Class<? extends Exception> expectedException, boolean maxJournals, JournalNumber journalNumber){
+        this.checkPointStatus = checkPointStatus;
+        this.compact = compact;
+        this.expectedException = expectedException;
+        this.maxJournals = maxJournals;
+        this.journalNumber = journalNumber;
     }
 
     public File journalSetting() throws Exception {
@@ -98,14 +107,7 @@ public class JournalCheckpointCompleteTest {
         return BookieImpl.getCurrentDirectory(journalDirectory);
     }
 
-    public JournalCheckpointCompleteTest(CheckPointStatus checkPointStatus, boolean compact,
-                                  Class<? extends Exception> expectedException, boolean maxJournals, JournalNumber journalNumber){
-        this.checkPointStatus = checkPointStatus;
-        this.compact = compact;
-        this.expectedException = expectedException;
-        this.maxJournals = maxJournals;
-        this.journalNumber = journalNumber;
-    }
+
 
     private void setCheckpoint(){
         switch (checkPointStatus){
@@ -122,7 +124,6 @@ public class JournalCheckpointCompleteTest {
                 checkpoint = spy(this.journal.newCheckpoint());
                 break;
             case INVALID:
-                System.out.print("Setto invalido\n");
                 checkpoint = CheckpointSource.DEFAULT.newCheckpoint(); //Checkpoint non di questo Journal
                 break;
 

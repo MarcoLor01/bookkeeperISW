@@ -456,7 +456,6 @@
                               <param>org.apache.bookkeeper.bookie.JournalCheckpointCompleteTest</param>
                               <param>org.apache.bookkeeper.bookie.JournalScanJournalTest</param>
                               <param>org.apache.bookkeeper.bookie.JournalConstructorTest</param>
-
                           </targetTests>
                           <avoidCallsTo>
                               <avoidCallsTo>org.slf4j</avoidCallsTo>

@@ -75,8 +75,6 @@ public class BufferedChannel extends BufferedReadChannel implements Closeable {
 
     private boolean closed = false;
 
-    private static final Logger logger = LoggerFactory.getLogger(BufferedChannel.class);
-
     // make constructor to be public for unit test
     public BufferedChannel(ByteBufAllocator allocator, FileChannel fc, int capacity) throws IOException {
         // Use the same capacity for read and write buffers.

@@ -43,6 +43,8 @@ public class JournalScanJournalTest {
     private final Version version;
     private final boolean negativeValue;
     private static int MAX_VALUE = 67000;
+
+
     public JournalScanJournalTest(long journalId, long journalPos, ScannerStatus scanner, boolean skipInvalidRecord, Version version, boolean negativeValue,
                                   Class<? extends Exception> expectedException){
         this.journalId = journalId;
@@ -71,12 +73,11 @@ public class JournalScanJournalTest {
                 {0, 1, ScannerStatus.VALID, false, Version.VERSION_4, false, null},
 
                 //After JaCoCo
-                //{-1, 0, ScannerStatus.VALID, true, Version.VERSION_5, false, null},
-                //{-1, 0, ScannerStatus.VALID, false, Version.VERSION_4, true, IOException.class},
-                //{-1, 0, ScannerStatus.VALID, false, Version.VERSION_5_CORRUPTED, true, IOException.class},
-                //{-1, 0, ScannerStatus.VALID, true, Version.VERSION_5_CORRUPTED, true, null},
+                {-1, 0, ScannerStatus.VALID, true, Version.VERSION_5, false, null},
+                {-1, 0, ScannerStatus.VALID, false, Version.VERSION_5_CORRUPTED, true, IOException.class},
+                {-1, 0, ScannerStatus.VALID, true, Version.VERSION_5_CORRUPTED, true, null},
                 //After Ba-Dua
-                //{0, 0, ScannerStatus.VALID, false, Version.VERSION_4_LEN_MAX, true, null},
+                {0, 0, ScannerStatus.VALID, false, Version.VERSION_4_LEN_MAX, true, null},
         });
     }
 
