@@ -7,6 +7,7 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import org.apache.bookkeeper.bookie.utils.commonEnum.ByteBufStatus;
 import org.apache.bookkeeper.bookie.utils.commonEnum.FileChannelStatus;
 import org.junit.*;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
@@ -16,11 +17,14 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.NonWritableChannelException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Random;
+import java.util.Set;
 
 import static org.mockito.Mockito.*;
 
@@ -36,13 +40,17 @@ public class BufferedChannelWriteTest {
     private final int writeCapacity;
     private final Class<? extends Exception> expectedException;
     private final FileChannelStatus fileChannelStatus;
-    private final Path PATH = Paths.get("src/test/java/org/apache/bookkeeper/bookie/utils/fileForTest");
+
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
+    private Path PATH;
+
     private final int bytesToWriteInSrc = DEFAULT_CAPACITY / 4;
     private final int unpersistedBytesBound;
     private byte[] randomBytes;
 
 
-    // Constructor for class parameters
+
     public BufferedChannelWriteTest(ByteBufStatus srcStatus, int writeCapacity, FileChannelStatus fileChannelStatus, int unpersistedBytesBound, Class<? extends Exception> expectedException) {
         this.srcStatus = srcStatus;
         this.writeCapacity = writeCapacity;
@@ -54,22 +62,12 @@ public class BufferedChannelWriteTest {
     @Parameterized.Parameters
     public static Collection<Object[]> parameters() {
         return Arrays.asList(new Object[][]{
-                // TEST 1: Write with `src` null, writeBuffer valid -> NullPointerException
+                // src, writeCapacity, statusChannel, unpersistedBytesBound -> Exception
                 {ByteBufStatus.NULL, 512, FileChannelStatus.DEFAULT, 256, NullPointerException.class},
-
-                // TEST 2: Valid write on buffer, writeBuffer valid -> No exception
                 {ByteBufStatus.DEFAULT, 256, FileChannelStatus.DEFAULT, 256, null},
-
-                // TEST 3: Write with capacity 0 -> No exception
                 {ByteBufStatus.ZERO_CAPACITY, 512, FileChannelStatus.DEFAULT, 0, null},
-
-                // TEST 4: `file channel` read only -> NonWritableChannelException
                 {ByteBufStatus.DEFAULT, 512, FileChannelStatus.READ_ONLY, 256, NonWritableChannelException.class},
-
-                //TEST 5: channel closed -> ClosedChannelException
                 {ByteBufStatus.DEFAULT, 512, FileChannelStatus.CLOSED, 256, ClosedChannelException.class},
-
-                //TEST 6: ByteBuf INVALID
                 //{ByteBufStatus.INVALID, 256, FileChannelStatus.DEFAULT, 256, IllegalReferenceCountException.class},
 
                 //Add after jacoco, need to go in the internal if
@@ -83,9 +81,11 @@ public class BufferedChannelWriteTest {
 
     @Before
     public void setUp() throws IOException {
+        PATH = tempFolder.newFile().toPath();
         allocator = UnpooledByteBufAllocator.DEFAULT;
         setFileChannel();
         src = setByteBufStatus(srcStatus);
+
         if(src != null && srcStatus != ByteBufStatus.INVALID && srcStatus != ByteBufStatus.EMPTY) {
             randomBytes = writeRandomByte();
         }
@@ -99,27 +99,25 @@ public class BufferedChannelWriteTest {
         return randomBytes;
     }
 
-    private void closeChannel() throws IOException {
-        fc = FileChannel.open(PATH, StandardOpenOption.CREATE);
-        fc.close();
-    }
-
     private void setFileChannel() throws IOException {
-        if (Files.notExists(PATH)) {
-            Files.createFile(PATH);
-        }
         switch(fileChannelStatus){
             case NULL:
                 fc = null;
                 break;
             case DEFAULT:
-                fc = FileChannel.open(PATH, StandardOpenOption.WRITE);
+                fc = FileChannel.open(PATH, StandardOpenOption.WRITE, StandardOpenOption.READ);
                 break;
             case CLOSED:
-                closeChannel();
+                fc = FileChannel.open(PATH, StandardOpenOption.WRITE);
+                fc.close();
                 break;
             case READ_ONLY:
+                if (Files.getFileStore(PATH).supportsFileAttributeView(PosixFileAttributeView.class)) {
+                    Set<PosixFilePermission> perms = PosixFilePermissions.fromString("r--r--r--");
+                    Files.setPosixFilePermissions(PATH, perms);
+                }
                 fc = FileChannel.open(PATH, StandardOpenOption.READ);
+                break;
         }
     }
 
@@ -144,18 +142,24 @@ public class BufferedChannelWriteTest {
 
 
     @After
-    public void tearDown() throws IOException {
-        if (Files.exists(PATH)) {
-            Files.delete(PATH);
-        }
-        if (fc != null && fc.isOpen()) {
-            fc.close();
+    public void tearDown() {
+        try {
+            if (bufferedChannel != null) {
+                bufferedChannel.close();
+            }
+        } catch (IOException e) {
+            // Logga ma non fallire il test
         }
 
-        if (bufferedChannel != null) {
-            bufferedChannel.close();
+        try {
+            if (fc != null && fc.isOpen()) {
+                fc.close();
+            }
+        } catch (IOException e) {
+            // Logga ma non fallire il test
         }
     }
+
 
 
     @Test

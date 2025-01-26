@@ -7,6 +7,7 @@ import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.IllegalReferenceCountException;
 import org.apache.bookkeeper.bookie.utils.commonEnum.ByteBufStatus;
 import org.junit.*;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -17,9 +18,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
@@ -40,12 +39,16 @@ public class BufferedChannelReadTest {
     private ByteBuf dest;
     private final ReadCases readCases;
     private BufferedChannel bufferedChannel;
-    private final Path PATH = Paths.get("src/test/java/org/apache/bookkeeper/bookie/utils/fileForTest");
     private static final Logger logger = LoggerFactory.getLogger(BufferedChannelConstructorTest.class);
     private final int readCapacity;
     private static final int DEFAULT_VALUE = 32;
+
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
+    private Path PATH;
     
-    public BufferedChannelReadTest(ByteBufStatus destStatus, int position, int length, int expectedResult, int readCapacity, Class<? extends Exception> expectedException, ReadCases state) {
+    public BufferedChannelReadTest(ByteBufStatus destStatus, int position, int length, int expectedResult, int readCapacity,
+                                   Class<? extends Exception> expectedException, ReadCases state) {
         this.destStatus = destStatus;
         this.position = position;
         this.expectedResult = expectedResult;
@@ -63,7 +66,6 @@ public class BufferedChannelReadTest {
 
                 // TEST: Dest , Pos , Length , ExpectedResult (0, if we have an Exception), ReadCapacity, WriteCapacity, UnpersistedBytesBound -> Exception
 
-                //WriteBuffer con dati
                 {ByteBufStatus.NULL, 0, 1, 0, 32, NullPointerException.class, ReadCases.WRITE_BUF_CASE},
                 {ByteBufStatus.NULL, 0, 0, 0, 32, null, ReadCases.WRITE_BUF_CASE},
                 {ByteBufStatus.ZERO_CAPACITY, 1, 1, 0, 32, IOException.class, ReadCases.WRITE_BUF_CASE},
@@ -71,13 +73,11 @@ public class BufferedChannelReadTest {
                 {ByteBufStatus.DEFAULT, 0, -1, 0, 32, null, ReadCases.WRITE_BUF_CASE},
                 {ByteBufStatus.DEFAULT, 1, 20, 20, 32, null, ReadCases.WRITE_BUF_CASE},
 
-                //Leggo solo da FC
                 {ByteBufStatus.DEFAULT, 15, 1, 0, 32, IOException.class, ReadCases.ONLY_FC_CASE},
                 {ByteBufStatus.DEFAULT, 14, 1, 0, 32, IOException.class, ReadCases.ONLY_FC_CASE},
                 {ByteBufStatus.DEFAULT, 13, 1, 1, 32, null, ReadCases.ONLY_FC_CASE},
                 {ByteBufStatus.INVALID, 0, 1, 0, 32, IllegalReferenceCountException.class, ReadCases.ONLY_FC_CASE},
 
-                //Test falliti
                 //{ByteBufStatus.DEFAULT, 1, 1, 1, 32, null, ReadCases.HIGH_VALUE_START_POSITION}, //Read all bytes
                 //{ByteBufStatus.DEFAULT, 1, 1, 1, 32, null,  ReadCases.WRITE_BUF_CASE}, // Read all bytes
                 //{ByteBufStatus.DEFAULT, 1, 2, 1, 32, null,  ReadCases.WRITE_BUF_CASE}, // Read all bytes
@@ -89,7 +89,7 @@ public class BufferedChannelReadTest {
                 //Test after Ba-Dua
                 {ByteBufStatus.DEFAULT, 1, 20, 20, 32, null,  ReadCases.READ_CASE},
 
-                //Test after pit
+                //Test after PIT
                 {ByteBufStatus.DEFAULT, 0, 1, 0, 0, IOException.class, ReadCases.ONLY_FC_CASE},
 
         });
@@ -97,16 +97,13 @@ public class BufferedChannelReadTest {
 
     @Before
     public void setUp() throws IOException {
+        PATH = tempFolder.newFile().toPath();
         allocator = UnpooledByteBufAllocator.DEFAULT;
         setReadCase();
         dest = setByteBufStatus(destStatus);
     }
 
     private void setReadCase() throws IOException {
-
-        if (Files.notExists(PATH)) {
-            Files.createFile(PATH);
-        }
 
         fc = FileChannel.open(PATH, StandardOpenOption.WRITE, StandardOpenOption.READ);
 
@@ -197,16 +194,21 @@ public class BufferedChannelReadTest {
 
 
     @After
-    public void tearDown() throws IOException {
-        if (Files.exists(PATH)) {
-            Files.delete(PATH);
+    public void tearDown() {
+        try {
+            if (bufferedChannel != null) {
+                bufferedChannel.close();
+            }
+        } catch (IOException e) {
+            logger.error("Error closing BufferedChannel", e);
         }
 
-        if (fc != null && fc.isOpen()) {
-            fc.close();
-        }
-        if (bufferedChannel != null) {
-            bufferedChannel.close();
+        try {
+            if (fc != null && fc.isOpen()) {
+                fc.close();
+            }
+        } catch (IOException e) {
+            logger.error("Error closing FileChannel", e);
         }
     }
 

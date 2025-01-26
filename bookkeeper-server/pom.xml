@@ -362,7 +362,6 @@
           </activation>
           <properties>
               <ba-dua.version>0.6.0</ba-dua.version>
-              <pitest.version>1.14.0</pitest.version>
               <argLine>
                   -javaagent:target/dependency/ba-dua-agent-rt-${ba-dua.version}-all.jar -Doutput.file=${project.build.directory}/badua.ser
               </argLine>
@@ -436,6 +435,7 @@
           </activation>
           <properties>
               <withHistory>true</withHistory>
+              <pitest.version>1.14.0</pitest.version>
               <pitest.history.file>${project.build.directory}/pitest.history</pitest.history.file>
           </properties>
           <build>
