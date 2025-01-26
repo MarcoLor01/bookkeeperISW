@@ -12,6 +12,7 @@ import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.bookkeeper.stats.StatsLogger;
 import org.apache.bookkeeper.util.DiskChecker;
 import org.apache.bookkeeper.util.IOUtils;
+import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -21,9 +22,10 @@ import org.junit.runners.Parameterized;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Random;
+import java.util.Collections;
 
 import static org.apache.bookkeeper.bookie.Journal.KB;
 import static org.apache.bookkeeper.bookie.Journal.MB;
@@ -108,6 +110,7 @@ public class JournalConstructorTest {
         switch (allocatorStatus){
             case NULL:
                 byteBufAllocator = null;
+                break;
             case INVALID:
                 byteBufAllocator = getInvalidAllocator();
                 break;
@@ -209,16 +212,19 @@ public class JournalConstructorTest {
                 journalDirectory = null;
                 break;
             case VALID:
-                File journalDirectory = IOUtils.createTempDir("bookie", "journal");
+                journalDirectory = IOUtils.createTempDir("bookie", "journal");
                 BookieImpl.checkDirectoryStructure(BookieImpl.getCurrentDirectory(journalDirectory));
-                this.journalDirectory = journalDirectory;
                 break;
             case INVALID:
-                Random random = new Random();
-                File dir = new File("/target/tmpDirs/journal" + random.nextInt());
-                dir.mkdirs();
-                dir.setWritable(false, false); //Non scrivibile
-                this.journalDirectory = dir;
+                journalDirectory = IOUtils.createTempDir("bookie", "invalid_journal");
+                try {
+                    Files.setPosixFilePermissions(
+                            journalDirectory.toPath(),
+                            Collections.emptySet()
+                    );
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to create invalid directory", e);
+                }
                 break;
             }
         }
@@ -262,22 +268,13 @@ public class JournalConstructorTest {
 
     private void deleteRecursively(File file) {
         try {
-            if (file.isDirectory()) {
-                File[] files = file.listFiles();
-                if (files != null) {
-                    for (File subFile : files) {
-                        deleteRecursively(subFile);
-                    }
-                }
-            }
-            file.delete();
-        } catch (Exception e) {
-            System.err.println("Failed to delete file: " + file.getAbsolutePath());
+            FileUtils.deleteDirectory(file);
+        } catch (IOException e) {
+            System.err.println("Failed to delete: " + file);
         }
     }
 
-
-    //DEFINIZIONE VARIE ENUM
+    //Definition Enum
 
     public enum LedgerDirsManagerStatus {
         NULL,

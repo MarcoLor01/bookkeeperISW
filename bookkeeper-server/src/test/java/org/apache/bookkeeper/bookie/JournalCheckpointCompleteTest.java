@@ -35,6 +35,7 @@ public class JournalCheckpointCompleteTest {
     private final boolean maxJournals;
     private final JournalNumber journalNumber;
     private List<String> ledgerDirNames;
+    private List<File> tempDirs = new ArrayList<>();
 
     @Parameterized.Parameters
     public static Collection<Object[]> parameters() {
@@ -47,9 +48,10 @@ public class JournalCheckpointCompleteTest {
                 {CheckPointStatus.INVALID, false, null, false, JournalNumber.DEFAULT},
                 {CheckPointStatus.NULL, false, null, false, JournalNumber.DEFAULT},
 
-                //After JaCoCo, non tocchiamo fin'ora il if (logs.size() >= maxBackupJournals), introduciamo nuova variabile
+                //After JaCoCo
                 {CheckPointStatus.VALID, true, null, true, JournalNumber.DEFAULT},
-                //After ba-dua, i=MAX_BACKUP
+
+                //After ba-dua
                 {CheckPointStatus.VALID, true, null, true, JournalNumber.MAX_BACKUP}
 
         });
@@ -58,21 +60,16 @@ public class JournalCheckpointCompleteTest {
     @Before
     public void setUp() throws Exception {
         File journalDirectory = journalSetting();
-
+        journal = bookie.journals.get(0);
         setCheckpoint();
 
         if (maxJournals){
-            if(journalNumber == JournalNumber.MAX_BACKUP){
-                for (int i=0; i< journal.maxBackupJournals-1;i++){ //MAX_BACKUP è pari a 5, ma noi effettuiamo già una scrittura precedente
-                    writeV4Journal(journalDirectory, 50, KEY);
-                }
-            } else {
-                for (int i = 0; i < 15; i++) {
-                    writeV4Journal(journalDirectory, 50, KEY);
-                }
+            int iterations = journalNumber == JournalNumber.MAX_BACKUP ? journal.maxBackupJournals : 15;
+
+            for (int i = 0; i < iterations; i++) {
+                writeV4Journal(journalDirectory, 50, KEY);
             }
         }
-
     }
 
     public JournalCheckpointCompleteTest(CheckPointStatus checkPointStatus, boolean compact,
@@ -99,11 +96,12 @@ public class JournalCheckpointCompleteTest {
 
         String[] tempList = new String[conf.getLedgerDirNames().length];
         for (int i = 0; i < conf.getLedgerDirNames().length; i++) {
-            tempList[0] = BookieImpl.getCurrentDirectory(new File(conf.getLedgerDirNames()[0])).toString();
+            File currentDir = BookieImpl.getCurrentDirectory(new File(conf.getLedgerDirNames()[i]));
+            tempList[i] = currentDir.toString();
         }
+
         ledgerDirNames = Arrays.asList(tempList);
         bookie = new TestBookieImpl(conf);
-        journal = bookie.journals.get(0);
         return BookieImpl.getCurrentDirectory(journalDirectory);
     }
 
@@ -120,7 +118,6 @@ public class JournalCheckpointCompleteTest {
                 if (maxJournals){
                     journal.setLastLogMark(2000000000000L, 0L);
                 }
-
                 checkpoint = spy(this.journal.newCheckpoint());
                 break;
             case INVALID:
@@ -165,16 +162,21 @@ public class JournalCheckpointCompleteTest {
 
     @After
     public void cleanUp() {
-        if (bookie != null) {
-            this.bookie.shutdown();
-        }
-        for (File dir : tempDirs) {
-            FileUtils.deleteQuietly(dir);
+        try {
+            if (bookie != null) {
+                bookie.shutdown();
+            }
+            for (File dir : tempDirs) {
+                if (dir.exists()) {
+                    FileUtils.deleteDirectory(dir);
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Error clean up: " + e.getMessage());
         }
         tempDirs.clear();
     }
 
-        List<File> tempDirs = new ArrayList<>();
 
     File createTempDirectory(String prefix, String suffix) throws IOException {
         File dir = IOUtils.createTempDir(prefix, suffix);

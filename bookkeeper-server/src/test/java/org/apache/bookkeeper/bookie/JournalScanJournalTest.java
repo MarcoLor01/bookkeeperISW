@@ -3,21 +3,16 @@ package org.apache.bookkeeper.bookie;
 import lombok.Getter;
 import org.apache.bookkeeper.bookie.Journal.JournalScanner;
 import org.apache.bookkeeper.conf.ServerConfiguration;
-import org.apache.bookkeeper.util.IOUtils;
-import org.apache.commons.io.FileUtils;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
 
 import static org.apache.bookkeeper.bookie.BookieUtilJournal.writeV4Journal;
 import static org.apache.bookkeeper.bookie.BookieUtilJournal.writeV5Journal;
@@ -34,15 +29,17 @@ public class JournalScanJournalTest {
     private final Class<? extends Exception> expectedException;
     private JournalScanner journalScanner;
     private Journal journal;
-    final List<File> tempDirs = new ArrayList<>();
-    private static long BYTES_WRITE = 0;
+    private long bytesWritten;
     private static final long EMPTY_JOURNAL = 516;
     private BookieImpl bookie;
     private final byte[] KEY = "test".getBytes();
     private static final int NUM_ENTRY = 10;
     private final Version version;
     private final boolean negativeValue;
-    private static int MAX_VALUE = 67000;
+    private static final int MAX_VALUE = 67000;
+
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
 
 
     public JournalScanJournalTest(long journalId, long journalPos, ScannerStatus scanner, boolean skipInvalidRecord, Version version, boolean negativeValue,
@@ -59,6 +56,7 @@ public class JournalScanJournalTest {
     @Parameterized.Parameters
     public static Collection<Object[]> parameters() {
         return Arrays.asList(new Object[][]{
+
                 // TEST: JournalId, journalPos, scanner, skipInvalidRecord, Version (After Jacoco), Negative Value (After Jacoco) -> Expected
                 {-1, 0, ScannerStatus.VALID, true, Version.VERSION_4, false, null},
                 {1, 0, ScannerStatus.VALID, false, Version.VERSION_4, false, null},
@@ -76,6 +74,7 @@ public class JournalScanJournalTest {
                 {-1, 0, ScannerStatus.VALID, true, Version.VERSION_5, false, null},
                 {-1, 0, ScannerStatus.VALID, false, Version.VERSION_5_CORRUPTED, true, IOException.class},
                 {-1, 0, ScannerStatus.VALID, true, Version.VERSION_5_CORRUPTED, true, null},
+
                 //After Ba-Dua
                 {0, 0, ScannerStatus.VALID, false, Version.VERSION_4_LEN_MAX, true, null},
         });
@@ -94,30 +93,30 @@ public class JournalScanJournalTest {
         if(version == Version.VERSION_4){
             if (!negativeValue) {
                 try (JournalChannel journalChannel = writeV4Journal(BookieImpl.getCurrentDirectory(journalDirectory), NUM_ENTRY, KEY)) {
-                    BYTES_WRITE += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
+                    bytesWritten += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
                 }
             } else {
                 try (JournalChannel journalChannel = writeV4Journal(BookieImpl.getCurrentDirectory(journalDirectory), NUM_ENTRY, KEY, -1)) {
-                    BYTES_WRITE += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
+                    bytesWritten += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
                 }
             }
         }
 
         if (version == Version.VERSION_4_LEN_MAX){
             try (JournalChannel journalChannel = writeV4Journal(BookieImpl.getCurrentDirectory(journalDirectory), NUM_ENTRY, KEY, MAX_VALUE)) {
-                BYTES_WRITE += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
+                bytesWritten += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
             }
         }
 
         if(version == Version.VERSION_5){
             try (JournalChannel journalChannel = writeV5Journal(BookieImpl.getCurrentDirectory(journalDirectory), NUM_ENTRY, KEY)) {
-                BYTES_WRITE += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
+                bytesWritten += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
             }
         }
 
         if (version == Version.VERSION_5_CORRUPTED){
             try (JournalChannel journalChannel = writeV5Journal(BookieImpl.getCurrentDirectory(journalDirectory), NUM_ENTRY, KEY, true)) {
-                BYTES_WRITE += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
+                bytesWritten += journalChannel.fc.position() + Integer.BYTES; //Tipo di Journal
             }
         }
 
@@ -139,11 +138,10 @@ public class JournalScanJournalTest {
 
 
 
-    File createTempDirectory(String prefix, String suffix) throws IOException {
-        File dir = IOUtils.createTempDir(prefix, suffix);
-        tempDirs.add(dir);
-        return dir;
+    private File createTempDirectory(String prefix, String suffix) throws IOException {
+        return tempFolder.newFolder(prefix + "_" + suffix);
     }
+
 
     private void setScanner() throws IOException{
         switch (scannerStatus) {
@@ -179,7 +177,7 @@ public class JournalScanJournalTest {
                             if (version == Version.VERSION_4_LEN_MAX){
                                 Assert.assertEquals(MAX_VALUE + 16, bytesRead);
                             } else {
-                                Assert.assertEquals(BYTES_WRITE, bytesRead); //Se l'ID è 0 leggo Journal corretto
+                                Assert.assertEquals(bytesWritten, bytesRead); //Se l'ID è 0 leggo Journal corretto
                             }
                             if (journalScanner instanceof ValidJournalScan && version != Version.VERSION_4_LEN_MAX) {
                                 Assert.assertEquals(NUM_ENTRY + 2, ((ValidJournalScan) journalScanner).getProcessCount()); //Num entry + primo mex + fence mex
@@ -192,7 +190,7 @@ public class JournalScanJournalTest {
                         }
                     } else {
                         if (journalId != 1) {
-                            Assert.assertTrue(BYTES_WRITE != bytesRead);
+                            Assert.assertTrue(bytesWritten != bytesRead);
                             Assert.assertEquals(((ValidJournalScan) journalScanner).getProcessCount(), 0);
                         } else {
                             Assert.assertEquals(EMPTY_JOURNAL, bytesRead); //Leggo Journal vuoto
@@ -209,15 +207,8 @@ public class JournalScanJournalTest {
     @After
     public void cleanUp() {
         if (bookie != null) {
-            this.bookie.shutdown();
+            bookie.shutdown();
         }
-
-        for (File dir : tempDirs) {
-            FileUtils.deleteQuietly(dir);
-        }
-        tempDirs.clear();
-
-        BYTES_WRITE = 0;
     }
 
     public enum ScannerStatus {
@@ -237,12 +228,11 @@ public class JournalScanJournalTest {
 
     }
 
-    private JournalScanner getInvalidJournalScanner() throws IOException{
-        JournalScanner mockJournalScanner = mock(JournalScanner.class);
-
-        doThrow(new IOException("Invalid Scanner")).when(mockJournalScanner)
-                .process(anyInt(), anyLong(), any(ByteBuffer.class));
-        return mockJournalScanner;
+    private JournalScanner getInvalidJournalScanner() throws IOException {
+        JournalScanner scanner = mock(JournalScanner.class);
+        doThrow(new IOException("Simulated scan error"))
+                .when(scanner).process(anyInt(), anyLong(), any(ByteBuffer.class));
+        return scanner;
     }
 
     public enum Version{
