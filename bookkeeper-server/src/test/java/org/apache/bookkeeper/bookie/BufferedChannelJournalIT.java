@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import static org.apache.bookkeeper.bookie.BookieUtilJournal.generateMetaEntry;
 
 public class BufferedChannelJournalIT {
+
     @Rule
     public TemporaryFolder temporaryFolder = new TemporaryFolder();
     private static final String SAMPLE_DATA = "BufferedChannelJournal";
@@ -28,9 +29,8 @@ public class BufferedChannelJournalIT {
     private final int journalId = 1;
     private JournalChannel journalChannel;
     private BufferedChannel bufferedChannel;
-    private static final Logger logger = LoggerFactory.getLogger(BufferedChannelJournalIT.class);
     private final long ledgerId = 1;
-    private final byte[] masterKey = "masterKey".getBytes();
+    private final byte[] masterKey = "masterKey".getBytes(StandardCharsets.UTF_8);
 
     @Before
     public void setUp() throws IOException {
@@ -64,50 +64,58 @@ public class BufferedChannelJournalIT {
         ByteBuf paddingBuff = Unpooled.buffer(PADDING_SIZE);
         paddingBuff.writeZero(PADDING_SIZE);
 
-        // Scrittura metadati
+        // Generate meta entry and capture its size before writing
         ByteBuf metaEntry = generateMetaEntry(ledgerId, masterKey);
-        ByteBuf lenBuff = Unpooled.buffer();
-        lenBuff.writeInt(metaEntry.readableBytes());
+        int metaEntrySize = metaEntry.readableBytes(); // Capture size before writing
+
+        // Write metadata entry
+        ByteBuf lenBuff = Unpooled.buffer(4); // Buffer for length (integer = 4 bytes)
+        lenBuff.writeInt(metaEntrySize);
         bufferedChannel.write(lenBuff);
         bufferedChannel.write(metaEntry);
+        // Release buffers
+        lenBuff.release();
+        metaEntry.release();
 
-        // Scrittura contenuto
-        ByteBuf contentBuffer = Unpooled.buffer(SAMPLE_DATA.getBytes().length);
-        contentBuffer.writeBytes(SAMPLE_DATA.getBytes());
-
-        lenBuff.clear();
-        lenBuff.writeInt(contentBuffer.readableBytes());
-        bufferedChannel.write(lenBuff);
+        // Write content entry
+        byte[] contentBytes = SAMPLE_DATA.getBytes(StandardCharsets.UTF_8);
+        ByteBuf contentBuffer = Unpooled.wrappedBuffer(contentBytes);
+        ByteBuf contentLenBuff = Unpooled.buffer(4);
+        contentLenBuff.writeInt(contentBytes.length);
+        bufferedChannel.write(contentLenBuff);
         bufferedChannel.write(contentBuffer);
+        // Release buffers
+        contentLenBuff.release();
+        contentBuffer.release();
 
-        // Padding e flush
+        // Write padding and flush
         Journal.writePaddingBytes(journalChannel, paddingBuff, JournalChannel.SECTOR_SIZE);
         bufferedChannel.flushAndForceWrite(false);
+        paddingBuff.release();
 
-
-        JournalScan journalScanner = new JournalScan(metaEntry.readableBytes());
+        // Scan journal with correct metaEntrySize
+        JournalScan journalScanner = new JournalScan(metaEntrySize);
         journal.scanJournal(journalId, 0, journalScanner, false);
 
-        // Validazione lettura
+        // Validate
         Assert.assertEquals(ledgerId, journalScanner.getLedgerId());
         Assert.assertEquals(BookieImpl.METAENTRY_ID_LEDGER_KEY, journalScanner.getMetaEntryId());
-        Assert.assertArrayEquals("masterKey".getBytes(), journalScanner.getMetaData());
+        Assert.assertArrayEquals(masterKey, journalScanner.getMetaData());
         Assert.assertEquals(SAMPLE_DATA, journalScanner.getData());
         Assert.assertEquals("Padding alignment failed", 0, journalChannel.bc.position % JournalChannel.SECTOR_SIZE);
-
     }
 
     private static class JournalScan implements Journal.JournalScanner {
         private final int metaEntrySize;
 
         @Getter
-        private String data; // Contenuto letto
+        private String data;
         @Getter
-        private long offset; // Offset della posizione letta
+        private long offset;
         @Getter
-        private byte[] metaData; // Metadati letti
+        private byte[] metaData;
         @Getter
-        private long ledgerId; // Ledger ID letto dai metadati
+        private long ledgerId;
         @Getter
         private long metaEntryId;
 
@@ -122,38 +130,33 @@ public class BufferedChannelJournalIT {
         public void process(int journalVersion, long offset, ByteBuffer entry) {
             this.offset = offset;
             try {
-                // Lettura metadati
-                if (metaEntrySize > 0 && entry.remaining() >= metaEntrySize) {
-                    // Ledger ID
+                if (metaEntrySize > 0 && entry.remaining() == metaEntrySize) {
+                    // Read metadata entry
                     this.ledgerId = entry.getLong();
-
-                    // MetaEntry ID
                     this.metaEntryId = entry.getLong();
-
-                    // Lunghezza della master key
                     int masterKeyLength = entry.getInt();
                     byte[] masterKey = new byte[masterKeyLength];
                     entry.get(masterKey);
-
-                    this.metaData = masterKey; // Salva la master key nei metadati
+                    this.metaData = masterKey;
+                } else {
+                    // Read content entry
+                    byte[] dataBytes = new byte[entry.remaining()];
+                    entry.get(dataBytes);
+                    this.data = new String(dataBytes, StandardCharsets.UTF_8);
                 }
-
-                int dataLength = entry.remaining();
-                byte[] dataBytes = new byte[dataLength];
-                entry.get(dataBytes); // Leggiamo i dati principali
-                this.data = new String(dataBytes, StandardCharsets.UTF_8);
-
             } catch (Exception e) {
-                throw new RuntimeException("Errore durante la lettura dell'entry al journal offset " + offset, e);
+                throw new RuntimeException("Error processing journal entry at offset " + offset, e);
             }
         }
     }
 
     @After
     public void cleanUp() throws IOException {
-        journalChannel.close();
-        journal.shutdown();
-
+        if (journalChannel != null) {
+            journalChannel.close();
+        }
+        if (journal != null) {
+            journal.shutdown();
+        }
     }
-
 }

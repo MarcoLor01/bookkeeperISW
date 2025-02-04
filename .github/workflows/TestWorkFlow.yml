@@ -1,4 +1,4 @@
-name: BuildWorkFlow
+name: TestWorkFlow
 on:
   push:
     branches:
@@ -25,3 +25,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: mvn clean verify
+      - name: Upload Failsafe report
+        uses: actions/upload-artifact@v3
+        with:
+          name: FailsafeReport
+          path: bookkeeper-server/target/failsafe-reports
+          if-no-files-found: error
+      - name: Upload Surefire report
+        uses: actions/upload-artifact@v3
+        with:
+          name: SurefireReport
+          path: bookkeeper-server/target/surefire-reports
+          if-no-files-found: error
