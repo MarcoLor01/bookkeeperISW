@@ -41,7 +41,7 @@ jobs:
         run: mvn clean verify -P pit-mutation
 
       - name: Save PIT report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: PitReport
           path: bookkeeper-server/target/pit-reports/

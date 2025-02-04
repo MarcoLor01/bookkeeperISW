@@ -32,7 +32,7 @@ jobs:
         run: mvn clean verify -P jacoco-coverage
 
       - name: Save JaCoCo report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: JaCoCoReport
           path: jacoco-coverage/target/site/jacoco-aggregate/
